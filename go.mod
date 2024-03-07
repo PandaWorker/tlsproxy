@@ -11,6 +11,9 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/bogdanfinn/fhttp v0.5.27 // indirect
+	github.com/bogdanfinn/tls-client v1.7.2 // indirect
+	github.com/bogdanfinn/utls v1.6.1 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/google/certificate-transparency-go v1.1.4 // indirect
