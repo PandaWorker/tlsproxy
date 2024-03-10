@@ -1,6 +1,7 @@
 package main
 
 import (
+	b64 "encoding/base64"
 	"flag"
 	"log"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	cflog "github.com/cloudflare/cfssl/log"
 	"github.com/elazarl/goproxy"
 	utls "github.com/refraction-networking/utls"
-	sf "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/utls"
 )
 
 func main() {
@@ -19,6 +19,7 @@ func main() {
 	flag.StringVar(&Flags.key, "key", "key.pem", "TLS CA key (generated automatically if not present)")
 	flag.StringVar(&Flags.upstreamProxy, "upstream", "", "Default upstream proxy prefixed by \"socks5://\" (can be overriden through x-tlsproxy-upstream header)")
 	flag.StringVar(&Flags.client, "client", "Chrome-120", "Default utls clientHelloID (can be overriden through x-tlsproxy-client header)")
+	flag.StringVar(&Flags.ja3, "ja3", "", "Default ja3 (can be overriden through x-tlsproxy-ja3 header)")
 	flag.BoolVar(&Flags.verbose, "verbose", false, "Enable verbose logging")
 	flag.Parse()
 
@@ -36,13 +37,36 @@ func main() {
 
 	proxy.OnRequest().DoFunc(
 		func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+
 			proxyConfig := parseCustomHeaders(&req.Header)
 			removeCustomHeaders(&req.Header)
 
 			clientHelloId := DefaultClientHelloID
+			clientHelloSpec := DefaultClientHelloSpec
 			upstreamProxy := DefaultUpstreamProxy
 
-			if len(proxyConfig.client) > 0 {
+			if len(proxyConfig.clientHelloSpec) > 0 {
+				clientHelloId = utls.HelloCustom
+
+				config, err := b64.StdEncoding.DecodeString(proxyConfig.clientHelloSpec)
+				if err != nil {
+					return nil, invalidClientHelloSpecResponse(req, ctx, proxyConfig.clientHelloSpec)
+				}
+				spec := utls.ClientHelloSpec{}
+				spec.ImportTLSClientHelloFromJSON(config)
+
+				clientHelloSpec = &spec
+			}
+			// Если указан ja3-string использщуем его
+			if len(proxyConfig.ja3) > 0 {
+				clientHelloId = utls.HelloCustom
+				spec, err := StringToSpec(proxyConfig.ja3, req.Header.Get("User-Agent"), true)
+				if err != nil {
+					return nil, invalidJA3StringResponse(req, ctx, proxyConfig.ja3)
+				}
+
+				clientHelloSpec = spec
+			} else if len(proxyConfig.client) > 0 {
 				customClientHeaderId, ok := getClientHelloID(proxyConfig.client)
 				if !ok {
 					return req, invalidClientResponse(req, ctx, proxyConfig.client)
@@ -60,9 +84,9 @@ func main() {
 				upstreamProxy = proxyUrl
 			}
 
-			roundTripper := sf.NewUTLSHTTPRoundTripperWithProxy(clientHelloId, &utls.Config{
+			roundTripper := NewUTLSHTTPRoundTripperWithProxy(clientHelloId, &utls.Config{
 				InsecureSkipVerify: true,
-			}, http.DefaultTransport, false, upstreamProxy)
+			}, http.DefaultTransport, false, clientHelloSpec, upstreamProxy)
 
 			ctx.RoundTripper = goproxy.RoundTripperFunc(
 				func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Response, error) {

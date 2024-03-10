@@ -15,18 +15,23 @@ type CLIFlags struct {
 	key           string
 	upstreamProxy string
 	client        string
+	ja3           string
 	verbose       bool
 }
 
 var (
-	Flags                CLIFlags
-	DefaultClientHelloID utls.ClientHelloID
-	DefaultUpstreamProxy *url.URL
+	Flags                  CLIFlags
+	DefaultClientHelloID   utls.ClientHelloID
+	DefaultClientHelloSpec *utls.ClientHelloSpec
+	DefaultUpstreamProxy   *url.URL
 )
 
 func getClientHelloID(client string) (utls.ClientHelloID, bool) {
 	clientArr := strings.Split(client, "-")
 	if len(clientArr) != 2 {
+		if clientArr[0] == "Custom" {
+			return utls.HelloCustom, true
+		}
 		return utls.ClientHelloID{}, false
 	}
 
@@ -47,6 +52,17 @@ func setDefaultClientHelloID(client string) {
 	DefaultClientHelloID = clientHelloId
 }
 
+func setDefaultClientHelloSpec(ja3 string) {
+	if len(ja3) > 0 {
+		spec, err := StringToSpec(ja3, "", false)
+		if err != nil {
+			log.Fatalf("Invalid ja3 format: %s", err)
+		}
+
+		DefaultClientHelloSpec = spec
+	}
+}
+
 func setDefaultUpstreamProxy(upstreamProxy string) {
 	proxyUrl, err := url.Parse(upstreamProxy)
 	if err != nil {
@@ -58,6 +74,11 @@ func setDefaultUpstreamProxy(upstreamProxy string) {
 
 func loadDefaultProxyConfig() {
 	setDefaultClientHelloID(Flags.client)
+
+	if len(Flags.ja3) > 0 {
+		setDefaultClientHelloID("Custom-0")
+		setDefaultClientHelloSpec(Flags.ja3)
+	}
 
 	if len(Flags.upstreamProxy) > 0 {
 		setDefaultUpstreamProxy(Flags.upstreamProxy)

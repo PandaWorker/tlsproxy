@@ -10,11 +10,15 @@ Built on top of [uTLS](https://github.com/refraction-networking/utls) and [gopro
 
 ```bash
 git clone https://github.com/rosahaj/tlsproxy
-cd ja3proxy
+cd tlsproxy
 go build
 
 # Start proxy
 ./tlsproxy -client Chrome-120
+
+# Start proxy with ja3 string
+./tlsproxy -ja3 771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513-21,29-23-24,0
+
 # Make requests
 curl --cacert cert.pem --proxy http://localhost:8080 https://www.example.com
 ```
@@ -51,6 +55,8 @@ Usage of ./tlsproxy:
         TLS CA certificate (generated automatically if not present) (default "cert.pem")
   -client string
         Default utls clientHelloID (can be overriden through x-tlsproxy-client header) (default "Chrome-120")
+  -ja3 string
+      
   -key string
         TLS CA key (generated automatically if not present) (default "key.pem")
   -port string
